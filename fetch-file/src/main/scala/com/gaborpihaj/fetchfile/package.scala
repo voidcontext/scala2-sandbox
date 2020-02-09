@@ -13,34 +13,29 @@ import java.net.{HttpURLConnection, URL}
 
 package object fetchfile {
 
-  // TODO: use Resource from cats-effect
-
-  def fetch[F[_]](url: String, targetFile: File, inEC: Blocker, outEC: Blocker)(implicit F: Sync[F], CS: ContextShift[F]): F[Unit] = {
-    val netUrl = new URL(url)
-
-    fetch(initConnection(netUrl), Resource.fromAutoCloseable(F.delay(new FileOutputStream(targetFile))), inEC, outEC)
-  }
-
-  def fetch[F[_]](in: Resource[F, InputStream], out: Resource[F, FileOutputStream], inEC: Blocker, outEC: Blocker)(
-    implicit F: Sync[F], CS: ContextShift[F]
+  def fetch[F[_]: Sync: ContextShift](
+    url: URL,
+    out: Resource[F, FileOutputStream],
+    chunkSize: Int,
+    ec: Blocker,
   ): F[Unit] = {
     val streamResources = for {
-      inStream <- in
+      inStream <- initConnection(url)
       outStream <- out
     } yield (inStream, outStream)
 
     streamResources.use {
       case (inStream, outStream) =>
-        readInputStream[F](F.delay(inStream), 1024, inEC)
-          .through(writeOutputStream[F](F.delay(outStream), outEC))
+        readInputStream[F](Sync[F].delay(inStream), chunkSize, ec)
+          .through(writeOutputStream[F](Sync[F].delay(outStream), ec))
           .compile
           .drain
     }
   }
 
-  private[this] def initConnection[F[_]](url: URL)(implicit F: Sync[F]): Resource[F, InputStream] = {
+  private[this] def initConnection[F[_]: Sync](url: URL): Resource[F, InputStream] = {
     Resource.make {
-      F.delay {
+      Sync[F].delay {
         val connection = url.openConnection().asInstanceOf[HttpURLConnection]
         connection.setRequestProperty(
           "User-Agent",
@@ -50,7 +45,7 @@ package object fetchfile {
         connection.getInputStream()
       }
     } { inputStream =>
-      F.delay(inputStream.close())
+      Sync[F].delay(inputStream.close())
     }
   }
 

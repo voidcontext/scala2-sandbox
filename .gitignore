@@ -1,3 +1,5 @@
 .bloop
 .metals
+.sbt-hydra-history
+metals.sbt
 target

@@ -1,0 +1,6 @@
+version: '3'
+services:
+  static-files:
+    build: docker/static-files
+    ports:
+      - 8088:80
