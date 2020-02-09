@@ -1,13 +1,10 @@
 package com.gaborpihaj
 
 import cats.effect._
-import cats.syntax.flatMap._
-import cats.syntax.functor._
 import fs2.io._
 
-import scala.concurrent.ExecutionContext
 
-import java.io.{InputStream, FileOutputStream, File}
+import java.io.{InputStream, FileOutputStream}
 import java.net.{HttpURLConnection, URL}
 
 

@@ -3,12 +3,11 @@ package fetchfile
 
 import cats.effect._
 import cats.syntax.functor._
-import cats.syntax.apply._
 
 import scala.concurrent.ExecutionContext
 
 import java.util.concurrent.Executors
-import java.io.{File, OutputStream, FileOutputStream}
+import java.io.{File, FileOutputStream}
 import java.net.URL
 
 object Main extends IOApp {

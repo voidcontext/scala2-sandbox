@@ -16,9 +16,9 @@ package object gaborpihaj {
   }
 
   private[this] def formatNanoTime(t: Long): String = {
-    val millis = Math.round(t / 1000).toDouble / 1000
+    val millis = Math.round(t.toDouble / 1000).toDouble / 1000
 
-    if (millis > 1000) Math.round(millis).toDouble / 1000 + "s"
-    else millis + "ms"
+    if (millis > 1000) s"${Math.round(millis).toDouble / 1000} s"
+    else s"${millis} ms"
   }
 }
