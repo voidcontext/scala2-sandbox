@@ -32,7 +32,7 @@ object Main extends IOApp {
 
   private[this] def tempFileStream(): IO[(File, Resource[IO, FileOutputStream])] =
     for {
-      tempFile <- IO.delay(File.createTempFile("100MB-testfile", ".tmp"))
+      tempFile          <- IO.delay(File.createTempFile("100MB-testfile", ".tmp"))
       outStreamResource <- IO.delay(Resource.fromAutoCloseable(IO.delay(new FileOutputStream(tempFile))))
     } yield (tempFile, outStreamResource)
 

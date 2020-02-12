@@ -24,4 +24,3 @@ lazy val fetchfile = (project in file("fetch-file"))
 
 lazy val root = (project in file("."))
   .aggregate(fetchfile, common)
-
