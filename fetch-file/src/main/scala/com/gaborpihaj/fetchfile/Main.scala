@@ -18,13 +18,28 @@ object Main extends IOApp {
     val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(2))
     val blocker = Blocker.liftExecutionContext(ec)
 
+    val stdoutProgress = progress[IO]()
+
+    val stdoutProgress2 = progress2[IO] {(downloaded, _, downloadSpeed) =>
+      println(
+        s"\u001b[1A\u001b[100D\u001b[0KDownloaded ${bytesToString(downloaded.bytes)} of ??? | ${bytesToString(downloadSpeed.bytesPerSecond)}/s"
+      )
+    }
+
 
     (for {
-      tmp                           <- tempFileStream()
-      (tempFile, outStreamResource) = tmp
-      _                             <- benchmark(fetch[IO](fileUrl, outStreamResource, 8 * 1024, blocker))
-      _                             <- IO(println(tempFile.getAbsolutePath()))
-      _                             <- IO(ec.shutdown())
+      tmp                             <- tempFileStream()
+      (tempFile, outStreamResource)   = tmp
+      _                               <- benchmark(fetch[IO](fileUrl, outStreamResource, 8 * 1024, blocker, stdoutProgress))
+      _                               <- IO.delay(println())
+
+      tmp2                            <- tempFileStream()
+      (tempFile2, outStreamResource2) = tmp2
+      _                               <- benchmark(fetch[IO](fileUrl, outStreamResource2, 8 * 1024, blocker, stdoutProgress2))
+
+      _                               <- IO(println(tempFile.getAbsolutePath()))
+      _                               <- IO(println(tempFile2.getAbsolutePath()))
+      _                               <- IO(ec.shutdown())
     } yield ())
       .as(ExitCode.Success)
   }
@@ -35,5 +50,4 @@ object Main extends IOApp {
       tempFile          <- IO.delay(File.createTempFile("100MB-testfile", ".tmp"))
       outStreamResource <- IO.delay(Resource.fromAutoCloseable(IO.delay(new FileOutputStream(tempFile))))
     } yield (tempFile, outStreamResource)
-
 }
