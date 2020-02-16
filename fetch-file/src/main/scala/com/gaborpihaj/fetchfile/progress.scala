@@ -19,7 +19,7 @@ object ProgressScalar {
             val elapsedTime = Duration(System.nanoTime() - startTime, NANOSECONDS)
 
             if (elapsedTime.toSeconds > 0) {
-              val speed = down / elapsedTime.toSeconds
+              val speed = (down * 1000) / elapsedTime.toMillis
 
               // TODO: get total size: connection.getContentLengthLong
               println(
