@@ -2,7 +2,7 @@ package com.gaborpihaj
 package fetchfile
 
 import cats.effect._
-import cats.syntax.functor._
+import cats.implicits._
 
 import scala.concurrent.ExecutionContext
 
@@ -11,9 +11,16 @@ import java.io.{File, FileOutputStream}
 import java.net.URL
 import fs2.Pipe
 
+import com.gaborpihaj.benchmark._
+
 object Main extends IOApp {
+  val benchmarkIO = Benchmarks.impl[IO]
+
+  import benchmarkIO._
+
 
   def run(args: List[String]): IO[ExitCode] = {
+
     val fileUrl = new URL("http://localhost:8088/100MB.zip")
 
     val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(4))
@@ -27,25 +34,33 @@ object Main extends IOApp {
       )
     }
 
+    val repeat = 10
+
 
     (for {
-      _ <- downloadAndTrack(fileUrl, blocker, stdoutProgress)
+      result1 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgress), repeat)
+      stats1  <- benchmarkStats(result1)
+      _ <- IO.delay(println(stats1.show))
       _ <- IO.delay(println())
-      _ <- downloadAndTrack(fileUrl, blocker, stdoutProgress2)
+
+      result2 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgress2), repeat)
+      stats2  <- benchmarkStats(result2)
+      _ <- IO.delay(println(stats2.show))
       _ <- IO.delay(println())
+
       _ <- IO(ec.shutdown())
     } yield ())
       .as(ExitCode.Success)
   }
 
-  private[this] def downloadAndTrack(fileUrl: URL, blocker: Blocker, progress: Pipe[IO, Byte, Unit]): IO[Unit] =
+  private[this] def downloadAndTrack(fileUrl: URL, blocker: Blocker, progress: Pipe[IO, Byte, Unit]): IO[TimeResult[Either[Throwable, Unit]]] =
     for {
       tmp                             <- tempFileStream()
       (tempFile, outStreamResource)   = tmp
-      _                               <- benchmark(fetch[IO](fileUrl, outStreamResource, 8 * 1024, blocker, progress))
-      _                               <- IO.delay(println(tempFile.getAbsolutePath()))
+      timeResult                      <- measureTime(fetch[IO](fileUrl, outStreamResource, 8 * 1024, blocker, progress))
       _                               <- IO.delay(println())
-    } yield ()
+      _                               <- IO.delay(tempFile.delete())
+    } yield timeResult
 
 
   private[this] def tempFileStream(): IO[(File, Resource[IO, FileOutputStream])] =
