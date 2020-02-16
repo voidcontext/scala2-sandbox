@@ -4,16 +4,12 @@ import cats.effect._
 import fs2._
 import fs2.io._
 
-import scala.concurrent.duration._
 
 import java.io.{InputStream, FileOutputStream}
 import java.net.{HttpURLConnection, URL}
-import java.util.concurrent.atomic.AtomicLong
 
 package object fetchfile {
-  import Progress._
 
-  type ProgressConsumer = (Downloaded, ElapsedTime, DownloadSpeed) => Unit
 
   def fetch[F[_]: Concurrent: ContextShift](
     url: URL,
@@ -37,42 +33,6 @@ package object fetchfile {
     }
   }
 
-  def progress[F[_]: Sync](): Pipe[F, Byte, Unit] = { s =>
-    Stream.eval(Sync[F].delay(System.nanoTime()))
-      .flatMap { startTime =>
-          val downloadedBytes = new AtomicLong(0)
-
-          s.chunks.map { chunk =>
-            val down = downloadedBytes.addAndGet(chunk.size.toLong)
-            val elapsedTime = Duration(System.nanoTime() - startTime, NANOSECONDS)
-
-            if (elapsedTime.toSeconds > 0) {
-              val speed = down / elapsedTime.toSeconds
-
-              // TODO: get total size: connection.getContentLengthLong
-              println(
-                s"\u001b[1A\u001b[100D\u001b[0KDownloaded ${bytesToString(down)} of ??? | ${bytesToString(speed)}/s"
-              )
-            }
-          }
-      }
-  }
-
-  def progress2[F[_]: Sync](f: ProgressConsumer): Pipe[F, Byte, Unit] = { s =>
-    Stream.eval(Sync[F].delay(System.nanoTime()))
-      .flatMap { startTime =>
-        val downloadedBytes = new AtomicLong(0)
-
-        s.chunks.map { chunk =>
-          val down = Downloaded(downloadedBytes.addAndGet(chunk.size.toLong))
-          val elapsedTime = ElapsedTime(Duration(System.nanoTime() - startTime, NANOSECONDS))
-          val downloadSpeed = DownloadSpeed.calc(elapsedTime, down)
-
-
-          f(down, elapsedTime, downloadSpeed)
-        }
-      }
-  }
 
   //  Like progess 3 but with tagged types instead of value objects
   // private[this] def progress3(): Pipe[F, Byte, Unit] = ???

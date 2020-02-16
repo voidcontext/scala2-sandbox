@@ -26,25 +26,25 @@ object Main extends IOApp {
     val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(4))
     val blocker = Blocker.liftExecutionContext(ec)
 
-    val stdoutProgress = progress[IO]()
+    val stdoutProgressScalar = ProgressScalar.progress[IO]()
 
-    val stdoutProgress2 = progress2[IO] {(downloaded, _, downloadSpeed) =>
+    val stdoutProgressCaseClass = ProgressCaseClass.progress[IO] {(downloaded, _, downloadSpeed) =>
       println(
         s"\u001b[1A\u001b[100D\u001b[0KDownloaded ${bytesToString(downloaded.bytes)} of ??? | ${bytesToString(downloadSpeed.bytesPerSecond)}/s"
       )
     }
 
-    val repeat = 10
+    val repeat = 12
 
 
     (for {
-      result1 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgress), repeat)
-      stats1  <- benchmarkStats(result1)
+      result1 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressScalar), repeat)
+      stats1  <- benchmarkStats(result1.drop(2))
       _ <- IO.delay(println(stats1.show))
       _ <- IO.delay(println())
 
-      result2 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgress2), repeat)
-      stats2  <- benchmarkStats(result2)
+      result2 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressCaseClass), repeat)
+      stats2  <- benchmarkStats(result2.drop(2))
       _ <- IO.delay(println(stats2.show))
       _ <- IO.delay(println())
 
