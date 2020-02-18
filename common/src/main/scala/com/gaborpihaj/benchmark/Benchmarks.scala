@@ -46,13 +46,13 @@ object Benchmarks {
       Sync[F].delay(
         result.foldLeft(BenchmarkStats(0, -1, 0, 0, 0)) {
           case (stats, TimeResult(time, result)) =>
-          BenchmarkStats(
-            stats.totalTime + time,
-            if (stats.min > time || stats.min == -1) time else stats.min,
-            if (stats.max < time) time else stats.max,
-            stats.executions + 1,
-            stats.errors + (if (result.isLeft) 1 else 0)
-          )
+            BenchmarkStats(
+              stats.totalTime + time,
+              if (stats.min > time || stats.min == -1) time else stats.min,
+              if (stats.max < time) time else stats.max,
+              stats.executions + 1,
+              stats.errors + (if (result.isLeft) 1 else 0)
+            )
         }
       )
     }

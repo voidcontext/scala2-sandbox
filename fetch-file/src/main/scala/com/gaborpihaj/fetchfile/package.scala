@@ -33,10 +33,6 @@ package object fetchfile {
     }
   }
 
-
-  //  Like progess 3 but with tagged types instead of value objects
-  // private[this] def progress3(): Pipe[F, Byte, Unit] = ???
-
   private[this] def initConnection[F[_]: Sync](url: URL): Resource[F, InputStream] = {
     Resource.make {
       Sync[F].delay {

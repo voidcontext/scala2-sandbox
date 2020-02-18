@@ -34,6 +34,12 @@ object Main extends IOApp {
       )
     }
 
+    val stdoutProgressTagged = ProgressTagged.progress[IO] {(downloaded, _, downloadSpeed) =>
+      println(
+        s"\u001b[1A\u001b[100D\u001b[0KDownloaded ${bytesToString(downloaded)} of ??? | ${bytesToString(downloadSpeed)}/s"
+      )
+    }
+
     val repeat = 12
 
 
@@ -46,6 +52,11 @@ object Main extends IOApp {
       result2 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressCaseClass), repeat)
       stats2  <- benchmarkStats(result2.drop(2))
       _ <- IO.delay(println(stats2.show))
+      _ <- IO.delay(println())
+
+      result3 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressTagged), repeat)
+      stats3  <- benchmarkStats(result3.drop(2))
+      _ <- IO.delay(println(stats3.show))
       _ <- IO.delay(println())
 
       _ <- IO(ec.shutdown())
