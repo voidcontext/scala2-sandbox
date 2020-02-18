@@ -23,8 +23,9 @@ object Main extends IOApp {
 
     val fileUrl = new URL("http://localhost:8088/100MB.zip")
 
-    val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(4))
-    val blocker = Blocker.liftExecutionContext(ec)
+
+    val ecResource = Resource.make(IO.delay(Executors.newFixedThreadPool(4)))(ec => IO.delay(ec.shutdown()))
+      .map(ExecutionContext.fromExecutorService)
 
     val stdoutProgressScalar = ProgressScalar.progress[IO]()
 
@@ -39,30 +40,29 @@ object Main extends IOApp {
         s"\u001b[1A\u001b[100D\u001b[0KDownloaded ${bytesToString(downloaded)} of ??? | ${bytesToString(downloadSpeed)}/s"
       )
     }
-
     val repeat = 12
 
+    ecResource.use { ec =>
+      val blocker = Blocker.liftExecutionContext(ec)
 
-    (for {
-      result1 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressScalar), repeat)
-      stats1  <- benchmarkStats(result1.drop(2))
-      _ <- IO.delay(println(stats1.show))
-      _ <- IO.delay(println())
+      (for {
+        _ <- createBenchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressScalar), repeat)
+        _ <- createBenchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressCaseClass), repeat)
+        _ <- createBenchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressTagged), repeat)
+      } yield ())
+        .as(ExitCode.Success)
+    }
 
-      result2 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressCaseClass), repeat)
-      stats2  <- benchmarkStats(result2.drop(2))
-      _ <- IO.delay(println(stats2.show))
-      _ <- IO.delay(println())
-
-      result3 <- benchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressTagged), repeat)
-      stats3  <- benchmarkStats(result3.drop(2))
-      _ <- IO.delay(println(stats3.show))
-      _ <- IO.delay(println())
-
-      _ <- IO(ec.shutdown())
-    } yield ())
-      .as(ExitCode.Success)
   }
+
+  private[this] def createBenchmark(computation: IO[TimeResult[Either[Throwable, Unit]]], repeat: Int): IO[Unit] = 
+    for {
+      result <- benchmark(computation, repeat)
+      stats  <- benchmarkStats(result.drop(2))
+      _      <- IO.delay(println(stats.show))
+      _      <- IO.delay(println())
+    } yield ()
+
 
   private[this] def downloadAndTrack(fileUrl: URL, blocker: Blocker, progress: Pipe[IO, Byte, Unit]): IO[TimeResult[Either[Throwable, Unit]]] =
     for {
