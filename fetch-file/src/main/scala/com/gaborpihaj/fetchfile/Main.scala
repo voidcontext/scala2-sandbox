@@ -44,6 +44,7 @@ object Main extends IOApp {
 
     ecResource.use { ec =>
       val blocker = Blocker.liftExecutionContext(ec)
+      implicit val backend: Backend[IO] = HttpURLConnectionBackend[IO]()
 
       (for {
         _ <- createBenchmark(downloadAndTrack(fileUrl, blocker, stdoutProgressScalar), repeat)
@@ -55,7 +56,7 @@ object Main extends IOApp {
 
   }
 
-  private[this] def createBenchmark(computation: IO[TimeResult[Either[Throwable, Unit]]], repeat: Int): IO[Unit] = 
+  private[this] def createBenchmark(computation: IO[TimeResult[Either[Throwable, Unit]]], repeat: Int): IO[Unit] =
     for {
       result <- benchmark(computation, repeat)
       stats  <- benchmarkStats(result.drop(2))
@@ -64,7 +65,9 @@ object Main extends IOApp {
     } yield ()
 
 
-  private[this] def downloadAndTrack(fileUrl: URL, blocker: Blocker, progress: Pipe[IO, Byte, Unit]): IO[TimeResult[Either[Throwable, Unit]]] =
+  private[this] def downloadAndTrack(fileUrl: URL, blocker: Blocker, progress: Pipe[IO, Byte, Unit])(
+    implicit backend: Backend[IO]
+  ): IO[TimeResult[Either[Throwable, Unit]]] =
     for {
       tmp                             <- tempFileStream()
       (tempFile, outStreamResource)   = tmp

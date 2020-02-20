@@ -1,52 +1,32 @@
 package com.gaborpihaj
 
 import cats.effect._
+import cats.implicits._
 import fs2._
 import fs2.io._
 
-
-import java.io.{InputStream, FileOutputStream}
-import java.net.{HttpURLConnection, URL}
+import java.io.{InputStream, OutputStream}
+import java.net.URL
 
 package object fetchfile {
-
+  type Backend[F[_]] = URL => Resource[F, InputStream]
 
   def fetch[F[_]: Concurrent: ContextShift](
     url: URL,
-    out: Resource[F, FileOutputStream],
+    out: Resource[F, OutputStream],
     chunkSize: Int,
     ec: Blocker,
     progressConsumer: Pipe[F, Byte, Unit]
-  ): F[Unit] = {
-    val streamResources = for {
-      inStream  <- initConnection(url)
-      outStream <- out
-    } yield (inStream, outStream)
+  )(implicit backend: Backend[F]): F[Unit] = {
 
-    streamResources.use {
+    backend(url).product(out).use {
       case (inStream, outStream) =>
         readInputStream[F](Sync[F].delay(inStream), chunkSize, ec)
+          //  TODO: use evalTap(f: Byte => F[Unit]) instead of observe
           .observe(progressConsumer)
           .through(writeOutputStream[F](Sync[F].delay(outStream), ec))
           .compile
           .drain
     }
   }
-
-  private[this] def initConnection[F[_]: Sync](url: URL): Resource[F, InputStream] = {
-    Resource.make {
-      Sync[F].delay {
-        val connection = url.openConnection().asInstanceOf[HttpURLConnection]
-        connection.setRequestProperty(
-          "User-Agent",
-          "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11"
-        )
-        connection.connect()
-        connection.getInputStream()
-      }
-    } { inputStream =>
-      Sync[F].delay(inputStream.close())
-    }
-  }
-
 }
