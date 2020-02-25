@@ -16,7 +16,7 @@ trait Benchmarks[F[_]] {
 }
 
 object Benchmarks {
-  def impl[F[_]: Sync]: Benchmarks[F] = new Benchmarks[F] {
+  implicit def benchmarkF[F[_]: Sync]: Benchmarks[F] =  new Benchmarks[F] {
     override def time[A](fa: F[A]): F[A] = {
       measureTime(fa).flatMap {
         case TimeResult(time, Left(err)) =>
@@ -57,5 +57,7 @@ object Benchmarks {
       )
     }
   }
+
+  def apply[F[_]: Sync](implicit ev: Benchmarks[F]) = ev
 }
 

@@ -22,7 +22,6 @@ package object fetchfile {
     backend(url).product(out).use {
       case (inStream, outStream) =>
         readInputStream[F](Sync[F].delay(inStream), chunkSize, ec)
-          //  TODO: use evalTap(f: Byte => F[Unit]) instead of observe
           .observe(progressConsumer)
           .through(writeOutputStream[F](Sync[F].delay(outStream), ec))
           .compile
