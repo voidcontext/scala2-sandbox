@@ -18,6 +18,16 @@ lazy val common = (project in file("common"))
     )
   )
 
+lazy val jline = (project in file("jline"))
+  .settings(
+    libraryDependencies ++= List(
+      "org.jline" % "jline-terminal" % "3.14.0",
+      "org.jline" % "jline-terminal-jansi" % "3.14.0",
+      "org.jline" % "jline-reader" % "3.14.0",
+//      "org.jline" % "jline-builtins" % "3.14.0",
+    )
+  )
+
 lazy val fetchfile = (project in file("fetch-file"))
   .settings(
     libraryDependencies ++= catsEffect ++ fs2IO ++ shapeless ++ scalaTest
