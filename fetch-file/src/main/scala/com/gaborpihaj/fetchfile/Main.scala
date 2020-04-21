@@ -21,7 +21,7 @@ object Main extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] = {
 
-    val fileUrl = new URL("http://localhost:8088/100MB.zip")
+    val fileUrl = new URL("http://localhost:8088/100MB.bin")
 
 
     val ecResource = Resource.make(IO.delay(Executors.newFixedThreadPool(4)))(ec => IO.delay(ec.shutdown()))

@@ -1,6 +1,7 @@
 ThisBuild / name := "scala-experiments"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := "2.13.1"
+ThisBuild / resolvers += Resolver.sonatypeRepo("snapshots")
 
 lazy val catsEffect = Seq("org.typelevel" %% "cats-effect" % "2.0.0")
 lazy val fs2IO = Seq(
@@ -12,7 +13,9 @@ lazy val scalaTest = Seq("org.scalatest" %% "scalatest" % "3.1.0" % "test")
 
 lazy val common = (project in file("common"))
   .settings(
-    libraryDependencies ++= catsEffect ++ scalaTest
+    libraryDependencies ++= catsEffect ++ scalaTest ++ List(
+      "com.gaborpihaj" %% "fetchfile" % "0.0.0+15-d64dd3f4+20200316-1700-SNAPSHOT"
+    )
   )
 
 lazy val fetchfile = (project in file("fetch-file"))

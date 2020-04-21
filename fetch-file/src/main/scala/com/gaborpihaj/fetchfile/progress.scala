@@ -34,11 +34,10 @@ object ProgressScalar {
 }
 
 object ProgressCaseClass {
-  final case class ElapsedTime(duration: Duration) extends AnyVal
   final case class Downloaded(bytes: Long) extends AnyVal
   final case class DownloadSpeed(bytesPerSecond: Long) extends AnyVal
 
-  type ProgressConsumer = (Downloaded, ElapsedTime, DownloadSpeed) => Unit
+  type ProgressConsumer = (Downloaded, Duration, DownloadSpeed) => Unit
 
   def progress[F[_]: Sync](f: ProgressConsumer): Pipe[F, Byte, Unit] = { s =>
     Stream.eval(Sync[F].delay(System.nanoTime()))
@@ -47,7 +46,7 @@ object ProgressCaseClass {
 
         s.chunks.map { chunk =>
           val down = Downloaded(downloadedBytes.addAndGet(chunk.size.toLong))
-          val elapsedTime = ElapsedTime(Duration(System.nanoTime() - startTime, NANOSECONDS))
+          val elapsedTime = Duration(System.nanoTime() - startTime, NANOSECONDS)
           val downloadSpeed = DownloadSpeed.calc(elapsedTime, down)
 
 
@@ -57,8 +56,8 @@ object ProgressCaseClass {
   }
 
   object DownloadSpeed {
-    def calc(elapsedTime: ElapsedTime, downloaded: Downloaded): DownloadSpeed = {
-      val elapsedSeconds = elapsedTime.duration.toMillis
+    def calc(elapsedTime: Duration, downloaded: Downloaded): DownloadSpeed = {
+      val elapsedSeconds = elapsedTime.toMillis
       DownloadSpeed(((downloaded.bytes) * 1000) / (if (elapsedSeconds == 0) 1L else elapsedSeconds))
     }
   }
