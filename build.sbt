@@ -3,6 +3,7 @@ ThisBuild / version := "0.1.0-SNAPSHOT"
 ThisBuild / scalaVersion := "2.13.1"
 ThisBuild / resolvers += Resolver.sonatypeRepo("snapshots")
 
+lazy val cats = Seq("org.typelevel" %% "cats-core" % "2.1.1")
 lazy val catsEffect = Seq("org.typelevel" %% "cats-effect" % "2.0.0")
 lazy val fs2IO = Seq(
   "co.fs2" %% "fs2-core" % "2.2.1",
@@ -20,7 +21,7 @@ lazy val common = (project in file("common"))
 
 lazy val jline = (project in file("jline"))
   .settings(
-    libraryDependencies ++= List(
+    libraryDependencies ++= cats ++ List(
       "org.jline" % "jline-terminal" % "3.14.0",
       "org.jline" % "jline-terminal-jansi" % "3.14.0",
       "org.jline" % "jline-reader" % "3.14.0",

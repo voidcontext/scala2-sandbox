@@ -3,14 +3,11 @@ package com.gaborpihaj
 import org.jline.terminal.TerminalBuilder
 import org.jline.keymap.BindingReader
 import java.io.PrintWriter
-import scala.collection.mutable
-// import org.jline.reader.LineReaderBuilder
-// import org.jline.reader.impl.completer.StringsCompleter
-// import org.jline.reader.impl.DefaultParser
-// import org.jline.builtins.Widgets.AutosuggestionWidgets
+import cats.data.Chain
+import cats.syntax.traverse._
 
 object TerminalControl {
-  def up(n: Int = 1) = esc(s"${n}A")
+  def up(n: Int = 1): String = Bytes.csi(n.toString().getBytes() ++ Array('A'.toByte)).map(_.toChar).mkString
 
   def down(n: Int = 1) = esc(s"${n}B")
 
@@ -24,7 +21,21 @@ object TerminalControl {
 
   def move(row: Int, column: Int) = esc(s"${row};${column}H")
 
-  def esc(s: String) = s"\u001b[$s"
+  def esc(s: String): String = s"\u001b[$s"
+}
+
+object Bytes {
+  val escape: Byte = 27.toByte
+  val leftSquareBracket: Byte = 91.toByte
+  val CSI: Array[Byte] = Array(escape, leftSquareBracket)
+
+  val leftArrowKey = csi(68.toByte)
+  val rightArrowKey = csi(67.toByte)
+
+  def csi(parameters: Byte*): Array[Byte] = CSI ++ parameters.toArray
+  def csi(parameters: Array[Byte]): Array[Byte] = CSI ++ parameters
+ 
+  //def csi(parameter: String): List = CSI.map(_.toChar).mkString
 }
 
 
@@ -34,85 +45,114 @@ object Main extends App {
     .jansi(true)
     .build()
 
-  // val completer = new StringsCompleter("foo", "bar", "baz")
-
-  // val reader = LineReaderBuilder.builder()
-  //   .terminal(terminal)
-  //   .completer(completer)
-  //   .build()
-
-  // val autoSuggestion = new AutosuggestionWidgets(reader)
-  // autoSuggestion.enable()
-
-  // val prompt = "jline2.prompt > "
-
-  // val str = reader.readLine(prompt)
-
-  // println(str)
-  // scala.io.StdIn.readLine()
-
-  // ---------------------
+  val writer = terminal.writer()
+  val reader = new BindingReader(terminal.reader())
 
   import TerminalControl._
 
   println(clearScreen() + move(1, 1))
   println("start...")
   println(move(terminal.getHeight(), 1))
-  print("prompt here > ")
+  val prompt = "prompt here > "
+  print(prompt)
 
   terminal.enterRawMode()
   terminal.echo(false)
 
-  val writer = terminal.writer()
-
-  val reader = new BindingReader(terminal.reader())
-
-
-  def printList[A](ls: List[A], startLine: Int, max: Int, writer: PrintWriter) = 
-    ls.take(max).zipWithIndex.foreach { 
-      case (a, index) =>
+  def printHistory[A](ls: Chain[A], startLine: Int, writer: PrintWriter): Unit =
+    ls.zipWithIndex.foldLeft(()) {
+      case (_, (a, index)) =>
         writer.print(move(startLine - index, 1)  + clearLine() + s"char: $a")
     }
-
-  def readSequence(s: List[Int], reader: BindingReader): List[Int] = s match {
-    case List(27) => readSequence(s :+ reader.readCharacter(), reader)
-    case List(27, 91) => readSequence(s :+ reader.readCharacter(), reader)
+  
+  def readSequence(reader: BindingReader)(s: Chain[Int]): Chain[Int] = s match {
+    case Chain(27)  => readSequence(reader)(s :+ reader.readCharacter())
+    case Chain(27, 91) => readSequence(reader)(s :+ reader.readCharacter())
     case l => l
   }
 
+  def debug[A](f: A => Unit): A => A = a => f.andThen(_ => a)(a)
 
-  var chars: mutable.ListBuffer[Int] = scala.collection.mutable.ListBuffer()
-  LazyList.continually(reader.readCharacter()).takeWhile(_ != 13)
-    .map(chr => List(chr))
-    .map(readSequence(_, reader))
-    .map { seq =>
-      val cursor = terminal.getCursorPosition(_ => ())
-      val row = cursor.getY()
-      val col = cursor.getX()
-      chars.addAll(seq)
-      printList(chars.toList.reverse, row - 2, terminal.getHeight() - 4, writer)
-      writer.print(move(row + 1, col + 1));
-      seq
-    }
-    .map {
-      case List(27, 91, 68) => writer.print(back())
-      case List(27, 91, 67) => writer.print(forward())
-      case List(c) if 32 <= c && c <= 126 => writer.print(c.toChar)
-      case _ => ()
-    }
-    .foreach(_ => terminal.flush())
+  type ByteSeq = Chain[Int]
+  type LineReaderState = (Chain[ByteSeq], Int, String)
 
+  def keyPress(write: (String) => Unit, row: Int, promptLength: Int)(state: LineReaderState, byteSeq: ByteSeq): LineReaderState = {
+    val (oldHistory, oldCursor, oldStr) = state
+    val history = Chain.one(byteSeq) ++ oldHistory
+
+    def home() = {
+        write(move(row, promptLength))
+        (history, 0, oldStr)
+    }
+
+    def end() = {
+      val cursor = oldStr.length()
+      write(move(row, promptLength + cursor))
+      (history, cursor, oldStr)
+    }
+
+    byteSeq match {
+      case Chain(27, 91, 68) if oldCursor > 0 =>
+        write(back())
+        (history, oldCursor - 1, oldStr)
+
+      case Chain(27, 91, 67) if oldCursor < oldStr.length =>
+        write(forward())
+        (history, oldCursor + 1, oldStr)
+
+      case Chain(27, 91, 70) => end()
+      case Chain(5) => end()
+
+      case Chain(27, 91, 72) => home()
+      case Chain(1) => home()
+
+      case Chain(c) if ((32 <= c && c <= 126) || 127 < c) =>
+        val (front, back) = oldStr.splitAt(oldCursor)
+        write(clearLine() + c.toChar + back + move(row, promptLength + oldCursor + 1))
+        val newStr = front + c.toChar + back
+        (history, oldCursor + 1, newStr)
+
+      case Chain(127) if oldCursor > 0 => // Backspace
+        val (old, back) = oldStr.splitAt(oldCursor)
+        val front = old.dropRight(1)
+        write(move(row, promptLength + oldCursor - 1) + clearLine() + back + move(row, promptLength + oldCursor - 1))
+        val newStr = front + back
+        (history, oldCursor - 1, newStr)
+
+      case Chain(27, 91, 51) => // Delete
+        val (front, old) = oldStr.splitAt(oldCursor)
+        val back = old.drop(1)
+        write(move(row, promptLength + oldCursor) + clearLine() + back + move(row, promptLength + oldCursor))
+        val newStr = front + back
+        (history, oldCursor, newStr)
+
+      case _ => (history, oldCursor, oldStr)
+    }
+  }
+
+  val terminalKeyPress: (LineReaderState, ByteSeq) => LineReaderState = keyPress(
+    s => {writer.write(s); terminal.flush()},
+    terminal.getCursorPosition(_ => ()).getY() + 1,
+    prompt.length() + 1
+  )
+  val (_, _, str) = LazyList.continually(reader.readCharacter()).takeWhile(_ != 13)
+    .map(chr => Chain.one(chr))
+    .map(readSequence(reader))
+    .foldLeft[LineReaderState]((Chain.empty[Chain[Int]], 0, "")) { (state, byteSeq) => 
+      debug[LineReaderState]({
+        case (history, _, _) =>
+          val cursor = terminal.getCursorPosition(_ => ())
+          val row = cursor.getY() + 1
+          val col = cursor.getX() + 1
+
+          printHistory(history.zipWithIndex.takeWhile({case (_, index) => index < terminal.getHeight() - 4}).map(_._1), row - 3, writer)
+          writer.print(move(row, col))
+          terminal.flush()
+      })(terminalKeyPress(state, byteSeq))
+    }
+
+  writer.print(clearScreen() + move(1, 1) + s"String read: $str")
+  writer.print(move(3, 1))
+  terminal.flush()
   terminal.close()
-
-  // var ch: Byte = scala.io.StdIn.
-  // while(ch !=  13.toByte) {
-  //   ch.toInt match {
-  //     case 37 => print(back())
-  //     case 39 => print(forward())
-  //     case c if 32 <= c && c <= 126 => print(c.toChar)
-  //   }
-  //   ch = scala.io.StdIn.readByte()
-  // }
-
-
 }
